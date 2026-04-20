@@ -1,38 +1,71 @@
-Operation Lean — Vendor Dashboard
-COR Infrastructure · COR Data · OPEX Enterprise  ·  Jan / Feb / Mar 2026  ·  Click any cell to edit
-Connecting...
-Connect to Google Sheets: Paste your Apps Script Web App URL below and click Connect. All edits will save to the shared Google Sheet instantly.
-Google Sheets URL:
-
-Connect
-↻ Refresh
-
-    All categories
-    COR - Infrastructure
-    COR - Data
-    OPEX - Enterprise
-  
-    All owners
-    Dale HopkinsJohn VarsJesse Redl
-    Jeff FolckemerMark BohdalSanjay Manchanda
-    Jean ParchewskyReilley DuchakBryan Larson
-    Unassigned
-  
-    All statuses
-    KeepEliminateRightsize
-    TBDN/A
-  
-Clear
-
-Export CSV
-Reset edits
-
-
-← Prev
-Next →
-
-
-Rows:
-      50100
-      200All
-    
+// Operation Lean - Google Apps Script Backend v3
+var SHEET_NAME = "Vendors";
+ 
+function doGet(e) {
+  try {
+    var action = e.parameter.action || "read";
+    if (action === "read") return readAll();
+    return respond({error: "Unknown action"});
+  } catch(err) {
+    return respond({error: err.toString()});
+  }
+}
+ 
+function doPost(e) {
+  try {
+    var body = JSON.parse(e.postData.contents);
+    if (body.action === "update") return updateRow(body);
+    return respond({error: "Unknown action"});
+  } catch(err) {
+    return respond({error: err.toString()});
+  }
+}
+ 
+function readAll() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  if (!sheet) return respond({error: "Sheet '" + SHEET_NAME + "' not found"});
+  var rows    = sheet.getDataRange().getValues();
+  var headers = rows[0];
+  var data = rows.slice(1).map(function(row) {
+    var obj = {};
+    headers.forEach(function(h, i) { obj[h] = row[i]; });
+    obj.jan26 = Number(obj.jan26) || 0;
+    obj.feb26 = (obj.feb26 !== "" && obj.feb26 !== null) ? Number(obj.feb26) : null;
+    obj.mar26 = (obj.mar26 !== "" && obj.mar26 !== null) ? Number(obj.mar26) : null;
+    obj.id    = Number(obj.id);
+    return obj;
+  });
+  return respond({data: data});
+}
+ 
+function updateRow(body) {
+  var sheet   = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  if (!sheet) return respond({error: "Sheet not found"});
+  var rows    = sheet.getDataRange().getValues();
+  var headers = rows[0];
+  var idCol   = headers.indexOf("id");
+  var fCol    = headers.indexOf(body.field);
+  var id      = Number(body.id);
+ 
+  if (fCol < 0) return respond({error: "Field not found: " + body.field});
+ 
+  for (var i = 1; i < rows.length; i++) {
+    if (Number(rows[i][idCol]) === id) {
+      sheet.getRange(i + 1, fCol + 1).setValue(body.value);
+      return respond({ok: true, id: id, field: body.field});
+    }
+  }
+  return respond({error: "Row not found for id: " + id});
+}
+ 
+function respond(data) {
+  var output = ContentService.createTextOutput(JSON.stringify(data));
+  output.setMimeType(ContentService.MimeType.JSON);
+  return output;
+}
+ 
+// Test function - run this manually in the editor to verify the sheet works
+function test() {
+  var result = readAll();
+  Logger.log(result.getContent());
+}
